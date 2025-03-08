@@ -7,6 +7,7 @@
 #include "draw.h"
 #include "game.h"
 #include "game_sound.h"
+#include "gamepad_menu_manager.h"
 #include "input.h"
 #include "kb.h"
 #include "mouse.h"
@@ -19,9 +20,6 @@
 #include "window_manager.h"
 
 namespace fallout {
-
-#define MAIN_MENU_WINDOW_WIDTH 640
-#define MAIN_MENU_WINDOW_HEIGHT 480
 
 typedef enum MainMenuButton {
     MAIN_MENU_BUTTON_INTRO,
@@ -71,8 +69,9 @@ static const int _return_values[MAIN_MENU_BUTTON_COUNT] = {
     MAIN_MENU_EXIT,
 };
 
-// 0x614840
-static int gMainMenuButtons[MAIN_MENU_BUTTON_COUNT];
+static GamepadButton* gMainMenuButtons[MAIN_MENU_BUTTON_COUNT];
+
+static VerticalLayout* layout = nullptr;
 
 // 0x614858
 static bool gMainMenuWindowHidden;
@@ -94,12 +93,12 @@ int mainMenuWindowInit()
 
     colorPaletteLoad("color.pal");
 
-    int mainMenuWindowX = (screenGetWidth() - MAIN_MENU_WINDOW_WIDTH) / 2;
-    int mainMenuWindowY = (screenGetHeight() - MAIN_MENU_WINDOW_HEIGHT) / 2;
+    int mainMenuWindowX = screenGetWidth() / 2;
+    int mainMenuWindowY = screenGetHeight() / 2;
     gMainMenuWindow = windowCreate(mainMenuWindowX,
         mainMenuWindowY,
-        MAIN_MENU_WINDOW_WIDTH,
-        MAIN_MENU_WINDOW_HEIGHT,
+        screenGetWidth(),
+        screenGetHeight(),
         0,
         WINDOW_HIDDEN | WINDOW_MOVE_ON_TOP);
     if (gMainMenuWindow == -1) {
@@ -110,17 +109,18 @@ int mainMenuWindowInit()
     gMainMenuWindowBuffer = windowGetBuffer(gMainMenuWindow);
 
     // mainmenu.frm
-    int backgroundFid = buildFid(OBJ_TYPE_INTERFACE, 140, 0, 0, 0);
+    int backgroundFid = buildFid(OBJ_TYPE_STEAMDECK, 0, 0, 0, 0);
     if (!_mainMenuBackgroundFrmImage.lock(backgroundFid)) {
         // NOTE: Uninline.
         return main_menu_fatal_error();
     }
 
-    blitBufferToBuffer(_mainMenuBackgroundFrmImage.getData(), 640, 480, 640, gMainMenuWindowBuffer, 640);
+    blitBufferToBuffer(_mainMenuBackgroundFrmImage.getData(), screenGetWidth(), screenGetHeight(), _mainMenuBackgroundFrmImage.getWidth(), gMainMenuWindowBuffer, screenGetWidth());
     _mainMenuBackgroundFrmImage.unlock();
 
+    constexpr int fontSize = 200;
     int oldFont = fontGetCurrent();
-    fontSetCurrent(100);
+    fontSetCurrent(fontSize);
 
     // SFALL: Allow to change font color/flags of copyright/version text
     //        It's the last byte ('3C' by default) that picks the colour used. The first byte supplies additional flags for this option
@@ -137,10 +137,13 @@ int mainMenuWindowInit()
     configGetInt(&gSfallConfig, SFALL_CONFIG_MISC_KEY, SFALL_CONFIG_MAIN_MENU_CREDITS_OFFSET_X_KEY, &offsetX);
     configGetInt(&gSfallConfig, SFALL_CONFIG_MISC_KEY, SFALL_CONFIG_MAIN_MENU_CREDITS_OFFSET_Y_KEY, &offsetY);
 
+    offsetX += 15;
+    offsetY += screenGetHeight() - 20;
+
     // Copyright.
     msg.num = 20;
     if (messageListGetItem(&gMiscMessageList, &msg)) {
-        windowDrawText(gMainMenuWindow, msg.text, 0, offsetX + 15, offsetY + 460, fontSettings | 0x06000000);
+        windowDrawText(gMainMenuWindow, msg.text, 0, offsetX, offsetY, fontSettings | 0x06000000);
     }
 
     // SFALL: Make sure font settings are applied when using 0x010000 flag
@@ -152,7 +155,7 @@ int mainMenuWindowInit()
     char version[VERSION_MAX];
     versionGetVersion(version, sizeof(version));
     len = fontGetStringWidth(version);
-    windowDrawText(gMainMenuWindow, version, 0, 615 - len, 460, fontSettings | 0x06000000);
+    windowDrawText(gMainMenuWindow, version, 0, screenGetWidth() - 35 - len, offsetY, fontSettings | 0x06000000);
 
     // menuup.frm
     fid = buildFid(OBJ_TYPE_INTERFACE, 299, 0, 0, 0);
@@ -169,7 +172,7 @@ int mainMenuWindowInit()
     }
 
     for (int index = 0; index < MAIN_MENU_BUTTON_COUNT; index++) {
-        gMainMenuButtons[index] = -1;
+        gMainMenuButtons[index] = nullptr;
     }
 
     // SFALL: Allow to move menu buttons
@@ -177,26 +180,28 @@ int mainMenuWindowInit()
     configGetInt(&gSfallConfig, SFALL_CONFIG_MISC_KEY, SFALL_CONFIG_MAIN_MENU_OFFSET_X_KEY, &offsetX);
     configGetInt(&gSfallConfig, SFALL_CONFIG_MISC_KEY, SFALL_CONFIG_MAIN_MENU_OFFSET_Y_KEY, &offsetY);
 
+    constexpr int marginX = 30 * 2;
+    constexpr int marginY = 19 * 2 + 10;
+    constexpr int spaceY = 42 * 2;
+
+    layout = addVerticalLayout();
+    layout->setWindow(windowGetWindow(gMainMenuWindow));
+    layout->makeButtonCurrent(0);
+    layout->makeCurrent();
     for (int index = 0; index < MAIN_MENU_BUTTON_COUNT; index++) {
-        gMainMenuButtons[index] = buttonCreate(gMainMenuWindow,
-            offsetX + 30,
-            offsetY + 19 + index * 42 - index,
-            26,
-            26,
-            -1,
-            -1,
-            1111,
+        gMainMenuButtons[index] = layout->addButton(
+            offsetX + marginX,
+            offsetY + marginY + index * spaceY - index,
+            _mainMenuButtonNormalFrmImage.getWidth(),
+            _mainMenuButtonNormalFrmImage.getHeight(),
             gMainMenuButtonKeyBindings[index],
             _mainMenuButtonNormalFrmImage.getData(),
-            _mainMenuButtonPressedFrmImage.getData(),
-            nullptr,
-            BUTTON_FLAG_TRANSPARENT);
-        if (gMainMenuButtons[index] == -1) {
+            _mainMenuButtonPressedFrmImage.getData());
+
+        if (gMainMenuButtons[index] == nullptr) {
             // NOTE: Uninline.
             return main_menu_fatal_error();
         }
-
-        buttonSetMask(gMainMenuButtons[index], _mainMenuButtonNormalFrmImage.getData());
     }
 
     fontSetCurrent(104);
@@ -208,11 +213,12 @@ int mainMenuWindowInit()
     if (fontSettingsSFall)
         fontSettings = fontSettingsSFall & 0xFF;
 
+    const int textMarginX = marginX + _mainMenuButtonNormalFrmImage.getWidth() + 20;
     for (int index = 0; index < MAIN_MENU_BUTTON_COUNT; index++) {
         msg.num = 9 + index;
         if (messageListGetItem(&gMiscMessageList, &msg)) {
             len = fontGetStringWidth(msg.text);
-            fontDrawText(gMainMenuWindowBuffer + offsetX + 640 * (offsetY + 42 * index - index + 20) + 126 - (len / 2), msg.text, 640 - (126 - (len / 2)) - 1, 640, fontSettings);
+            fontDrawText(gMainMenuWindowBuffer + offsetX + textMarginX + screenGetWidth() * (offsetY + spaceY * index - index + marginY), msg.text, screenGetWidth() - (126 - (len / 2)) - 1, screenGetWidth(), fontSettings);
         }
     }
 
@@ -232,11 +238,10 @@ void mainMenuWindowFree()
     }
 
     for (int index = 0; index < MAIN_MENU_BUTTON_COUNT; index++) {
-        // FIXME: Why it tries to free only invalid buttons?
-        if (gMainMenuButtons[index] == -1) {
-            buttonDestroy(gMainMenuButtons[index]);
-        }
+        gMainMenuButtons[index] = nullptr;
     }
+    removeVerticalLayout(layout);
+    layout = nullptr;
 
     _mainMenuButtonPressedFrmImage.unlock();
     _mainMenuButtonNormalFrmImage.unlock();
@@ -314,7 +319,7 @@ int mainMenuWindowHandleEvents()
     while (rc == -1) {
         sharedFpsLimiter.mark();
 
-        int keyCode = inputGetInput();
+        int keyCode = updateLayouts();
 
         for (int buttonIndex = 0; buttonIndex < MAIN_MENU_BUTTON_COUNT; buttonIndex++) {
             if (keyCode == gMainMenuButtonKeyBindings[buttonIndex] || keyCode == toupper(gMainMenuButtonKeyBindings[buttonIndex])) {

@@ -1,6 +1,8 @@
 #include "input.h"
 
 #include <SDL.h>
+#include <iterator>
+#include <vector>
 
 #include "audio_engine.h"
 #include "color.h"
@@ -37,6 +39,8 @@ typedef struct TickerListNode {
     TickerProc* proc;
     struct TickerListNode* next;
 } TickerListNode;
+
+static std::vector<EventsHandler*> eventsHandlers;
 
 static int dequeueInputEvent();
 static void screenshotBlitter(unsigned char* src, int src_pitch, int a3, int x, int y, int width, int height, int dest_x, int dest_y);
@@ -326,6 +330,24 @@ void tickersRemove(TickerProc* proc)
         }
         curr = curr->next;
     }
+}
+
+void eventsHandlerAdd(EventsHandler* proc)
+{
+    if (std::find(std::begin(eventsHandlers), std::end(eventsHandlers), proc) != std::end(eventsHandlers)) {
+        return;
+    }
+
+    eventsHandlers.push_back(proc);
+}
+
+void eventsHandlerRemove(EventsHandler* proc)
+{
+    const auto removeIt = std::remove(std::begin(eventsHandlers), std::end(eventsHandlers), proc);
+    if (removeIt == std::end(eventsHandlers)) {
+        return;
+    }
+    eventsHandlers.erase(removeIt);
 }
 
 // 0x4C8DE4
@@ -956,6 +978,10 @@ void _GNW95_process_message()
         case SDL_QUIT:
             exit(EXIT_SUCCESS);
             break;
+        default:
+            for (auto eventHandler : eventsHandlers) {
+                eventHandler(&e);
+            }
         }
     }
 

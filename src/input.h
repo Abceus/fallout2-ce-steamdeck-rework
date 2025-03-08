@@ -1,11 +1,14 @@
 #ifndef FALLOUT_INPUT_H_
 #define FALLOUT_INPUT_H_
 
+#include "SDL_events.h"
 namespace fallout {
 
 typedef void(TickerProc)();
 
 typedef int(ScreenshotHandler)(int width, int height, unsigned char* buffer, unsigned char* palette);
+
+typedef void(EventsHandler)(const SDL_Event* event);
 
 int inputInit(int a1);
 void inputExit();
@@ -17,6 +20,8 @@ void inputEventQueueReset();
 void tickersExecute();
 void tickersAdd(TickerProc* fn);
 void tickersRemove(TickerProc* fn);
+void eventsHandlerAdd(EventsHandler* fn);
+void eventsHandlerRemove(EventsHandler* fn);
 void tickersEnable();
 void tickersDisable();
 void takeScreenshot();

@@ -1381,6 +1381,12 @@ static int gameDbInit()
         dbOpen("f2_res.dat", 0, nullptr, 1);
     }
 
+    int steamdeck_db_handle = dbOpen("steamdeck.dat", 0, nullptr, 1);
+    if (steamdeck_db_handle == -1) {
+        showMesageBox("Could not find the steamdeck datafile.");
+        return -1;
+    }
+
     return 0;
 }
 

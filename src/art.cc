@@ -64,6 +64,7 @@ static ArtListDescription gArtListDescriptions[OBJ_TYPE_COUNT] = {
     { 0, "heads", nullptr, nullptr, 0 },
     { 0, "backgrnd", nullptr, nullptr, 0 },
     { 0, "skilldex", nullptr, nullptr, 0 },
+    { 0, "steamdeck", nullptr, nullptr, 0 },
 };
 
 // This flag denotes that localized arts should be looked up first. Used

@@ -9,6 +9,7 @@
 #include "db.h"
 #include "draw.h"
 #include "game.h"
+#include "gamepad.h"
 #include "input.h"
 #include "interpreter_lib.h"
 #include "kb.h"
@@ -1440,6 +1441,7 @@ void _initWindow(int resolution, int a2)
     fontSetCurrent(100);
 
     mouseManagerInit();
+    initGamepad();
 
     mouseManagerSetNameMangler(_interpretMangleName);
 

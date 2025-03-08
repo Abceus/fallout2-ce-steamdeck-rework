@@ -12,6 +12,7 @@
 #include "delay.h"
 #include "draw.h"
 #include "game_mouse.h"
+#include "gamepad.h"
 #include "input.h"
 #include "memory.h"
 #include "message.h"
@@ -151,7 +152,7 @@ void creditsOpen(const char* filePath, int backgroundFid, bool useReversedStyle)
                                     for (int index = 0; index < lineHeight; index++) {
                                         sharedFpsLimiter.mark();
 
-                                        if (inputGetInput() != -1) {
+                                        if (inputGetInput() != -1 || getGamepadState()->anyButtonPressed()) {
                                             stop = true;
                                             break;
                                         }
